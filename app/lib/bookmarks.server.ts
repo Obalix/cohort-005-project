@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
-import { bookmarks, courses, lessons, modules } from "~/db/schema";
+import { bookmarks } from "~/db/schema";
 import type { Db } from "~/lib/comments.server";
+import { joinSavedLesson, savedLessonColumns } from "~/lib/saved-lesson.server";
 
 // ─── Bookmarks ───
 // A Student's flag on a Lesson. One per Student per Lesson, enforced by the
@@ -50,20 +51,16 @@ export function toggleBookmark(
 
 /** The Student's Bookmarks with their Lesson and Course, newest first. */
 export function listBookmarks(db: Db, userId: number) {
-  return db
+  const query = db
     .select({
       id: bookmarks.id,
       createdAt: bookmarks.createdAt,
-      lessonId: lessons.id,
-      lessonTitle: lessons.title,
-      moduleTitle: modules.title,
-      courseTitle: courses.title,
-      courseSlug: courses.slug,
+      ...savedLessonColumns,
     })
     .from(bookmarks)
-    .innerJoin(lessons, eq(bookmarks.lessonId, lessons.id))
-    .innerJoin(modules, eq(lessons.moduleId, modules.id))
-    .innerJoin(courses, eq(modules.courseId, courses.id))
+    .$dynamic();
+
+  return joinSavedLesson(query, bookmarks.lessonId)
     .where(eq(bookmarks.userId, userId))
     .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
     .all();

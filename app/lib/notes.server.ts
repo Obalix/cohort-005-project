@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
-import { courses, lessons, modules, notes } from "~/db/schema";
+import { notes } from "~/db/schema";
 import type { Db } from "~/lib/comments.server";
+import { joinSavedLesson, savedLessonColumns } from "~/lib/saved-lesson.server";
 import { MAX_NOTE_LENGTH } from "~/lib/notes";
 
 // ─── Notes ───
@@ -70,21 +71,17 @@ export function saveNote(
 
 /** The Student's Notes with their Lesson and Course, last edited first. */
 export function listNotes(db: Db, userId: number) {
-  return db
+  const query = db
     .select({
       id: notes.id,
       body: notes.body,
       updatedAt: notes.updatedAt,
-      lessonId: lessons.id,
-      lessonTitle: lessons.title,
-      moduleTitle: modules.title,
-      courseTitle: courses.title,
-      courseSlug: courses.slug,
+      ...savedLessonColumns,
     })
     .from(notes)
-    .innerJoin(lessons, eq(notes.lessonId, lessons.id))
-    .innerJoin(modules, eq(lessons.moduleId, modules.id))
-    .innerJoin(courses, eq(modules.courseId, courses.id))
+    .$dynamic();
+
+  return joinSavedLesson(query, notes.lessonId)
     .where(eq(notes.userId, userId))
     .orderBy(desc(notes.updatedAt), desc(notes.id))
     .all();
